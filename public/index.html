@@ -110,6 +110,14 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--bg-primary);
 .recent-label{font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.8px;padding:4px 10px;margin-bottom:4px}
 .export-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:11px;font-family:var(--font-sans);cursor:pointer;transition:var(--transition);min-height:28px}
 .export-btn:active{background:var(--bg-tertiary);color:var(--text-primary)}
+.ctx-bar{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-muted);font-family:var(--font-mono)}
+.ctx-track{width:60px;height:4px;border-radius:2px;background:var(--bg-primary);overflow:hidden;flex-shrink:0}
+.ctx-fill{height:100%;border-radius:2px;transition:width 0.3s ease;min-width:1px}
+.sysprompt-editor{width:100%;min-height:120px;padding:10px 12px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-mono);font-size:12px;line-height:1.5;resize:vertical;outline:none;transition:var(--transition)}
+.sysprompt-editor:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,255,170,0.1)}
+.sysprompt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sysprompt-agent{font-size:13px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px}
+.sysprompt-reset{font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:var(--font-sans);padding:4px 8px}
 .msg.system{align-self:center;max-width:95%}
 .msg.system .bubble{background:transparent;border:1px dashed var(--border);color:var(--text-muted);font-size:12px;text-align:center;font-family:var(--font-mono)}
 .typing{display:flex;gap:4px;padding:10px 14px;align-self:flex-start}
@@ -301,11 +309,18 @@ function getRecentAgents(){try{return JSON.parse(localStorage.getItem('aberdeen_
 function addRecentAgent(agentId){try{let r=getRecentAgents().filter(id=>id!==agentId);r.unshift(agentId);r=r.slice(0,5);localStorage.setItem('aberdeen_recent_agents',JSON.stringify(r))}catch{}}
 
 // ─── Conversation Persistence ───────────────────────────────
+function getCustomPrompts(){try{return JSON.parse(localStorage.getItem('aberdeen_custom_prompts')||'{}')}catch{return{}}}
+function setCustomPrompt(agentId,prompt){try{const p=getCustomPrompts();if(prompt)p[agentId]=prompt;else delete p[agentId];localStorage.setItem('aberdeen_custom_prompts',JSON.stringify(p))}catch{}}
+function getAgentPrompt(agent){const custom=getCustomPrompts()[agent.id];return custom!==undefined?custom:agent.sys}
 function saveConversation(agentId,messages){try{const convos=JSON.parse(localStorage.getItem('aberdeen_conversations')||'{}');convos[agentId]=messages.slice(-100);localStorage.setItem('aberdeen_conversations',JSON.stringify(convos))}catch{}}
 function loadConversation(agentId){try{const convos=JSON.parse(localStorage.getItem('aberdeen_conversations')||'{}');return convos[agentId]||[]}catch{return[]}}
 
 // ─── Export ─────────────────────────────────────────────────
 function exportConversation(agentName,messages){const lines=[`# ${agentName} — Aberdeen AI Gateway`,`Exported: ${new Date().toLocaleString()}`,'---',''];messages.forEach(m=>{const role=m.role==='user'?'**You**':m.role==='assistant'?`**${agentName}**`:'_System_';lines.push(`${role}:`,m.content,'')});const blob=new Blob([lines.join('\n')],{type:'text/markdown'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${agentName.replace(/\s+/g,'-').toLowerCase()}-chat-${Date.now()}.md`;a.click();URL.revokeObjectURL(url)}
+
+// ─── Token Estimation ───────────────────────────────────────
+function estimateTokens(messages,sysPrompt){let chars=(sysPrompt||'').length;messages.forEach(m=>chars+=m.content.length);return Math.ceil(chars/3.5)}
+const MAX_CONTEXT=200000;
 
 // ─── Configuration ───────────────────────────────────────────
 const CONFIG = {
@@ -313,7 +328,7 @@ const CONFIG = {
   SUPABASE_URL: (()=>{try{return localStorage.getItem('aberdeen_supabase_url')||''}catch{return ''}})(),
   SUPABASE_KEY: (()=>{try{return localStorage.getItem('aberdeen_supabase_key')||''}catch{return ''}})(),
   ANTHROPIC_KEY: (()=>{try{return localStorage.getItem('aberdeen_anthropic_key')||''}catch{return ''}})(),
-  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.2.0'
+  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.3.0'
 };
 
 // ─── Categories & Agents ─────────────────────────────────────
@@ -377,7 +392,10 @@ function routeMessage(msg,agents){const l=msg.toLowerCase();const s=agents.map(a
 async function querySupabase(msg){if(!CONFIG.SUPABASE_URL||!CONFIG.SUPABASE_KEY)return null;const l=msg.toLowerCase();let t=null;if(/candidate|applicant|resume|talent/.test(l))t='candidates';else if(/job|position|role|opening/.test(l))t='jobs';else if(/placement|hire|onboard/.test(l))t='placements';if(!t)return null;try{const r=await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,{headers:{'apikey':CONFIG.SUPABASE_KEY,'Authorization':`Bearer ${CONFIG.SUPABASE_KEY}`}});if(!r.ok)return null;return{table:t,data:await r.json()}}catch{return null}}
 async function callClaudeStream(messages,systemPrompt,onChunk){
   if(!CONFIG.ANTHROPIC_KEY)return"⚠️ API key not configured. Open Settings → Config to add your Anthropic API key.";
-  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:CONFIG.ANTHROPIC_MODEL,max_tokens:2048,stream:true,system:systemPrompt,messages})});
+  const body=JSON.stringify({model:CONFIG.ANTHROPIC_MODEL,max_tokens:2048,stream:true,system:systemPrompt,messages});
+  let r;
+  try{r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','x-client-api-key':CONFIG.ANTHROPIC_KEY},body})}catch(proxyErr){r=null}
+  if(!r||!r.ok){r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body})}
   if(!r.ok)throw new Error(`API ${r.status}`);
   const reader=r.body.getReader();const decoder=new TextDecoder();let full='';let buf='';
   while(true){const{done,value}=await reader.read();if(done)break;
@@ -517,9 +535,10 @@ function RightPanel({state,dispatch,onClose}){
   const allAgents=[...AGENTS,...state.customAgents];
   return(<div className="panel">
     <div className="panel-handle"/>
-    <div className="panel-tabs">{['config','policies','events','dlq','metrics'].map(tab=>(<button key={tab} className={`panel-tab${panelTab===tab?' active':''}`} onClick={()=>dispatch({type:'SET_PANEL_TAB',payload:tab})}>{tab==='dlq'?'DLQ':tab.charAt(0).toUpperCase()+tab.slice(1)}</button>))}</div>
+    <div className="panel-tabs">{['config','prompt','policies','events','dlq','metrics'].map(tab=>(<button key={tab} className={`panel-tab${panelTab===tab?' active':''}`} onClick={()=>dispatch({type:'SET_PANEL_TAB',payload:tab})}>{tab==='dlq'?'DLQ':tab.charAt(0).toUpperCase()+tab.slice(1)}</button>))}</div>
     <div className="panel-content">
       {panelTab==='config'&&<div className="config-section"><h4 style={{fontSize:13,fontWeight:600,marginBottom:16,color:'var(--text-primary)'}}>API Configuration</h4><div className="config-field"><label className="config-label">Anthropic API Key</label><input type="password" className="config-input" placeholder="sk-ant-..." defaultValue={CONFIG.ANTHROPIC_KEY} onChange={e=>{CONFIG.ANTHROPIC_KEY=e.target.value;try{localStorage.setItem('aberdeen_anthropic_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Required for AI responses. Get yours at <a href="https://console.anthropic.com" target="_blank" rel="noopener" style={{color:'var(--accent)'}}>console.anthropic.com</a></div></div><div className="config-field"><label className="config-label">Supabase URL</label><input type="text" className="config-input" placeholder="https://xxx.supabase.co" defaultValue={CONFIG.SUPABASE_URL} onChange={e=>{CONFIG.SUPABASE_URL=e.target.value;try{localStorage.setItem('aberdeen_supabase_url',e.target.value)}catch(ex){}}}/></div><div className="config-field"><label className="config-label">Supabase Key</label><input type="password" className="config-input" placeholder="eyJ..." defaultValue={CONFIG.SUPABASE_KEY} onChange={e=>{CONFIG.SUPABASE_KEY=e.target.value;try{localStorage.setItem('aberdeen_supabase_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Optional. Enables NorthStar pipeline queries.</div></div><div className="config-field"><label className="config-label">Model</label><select className="config-input" defaultValue={CONFIG.ANTHROPIC_MODEL} onChange={e=>{CONFIG.ANTHROPIC_MODEL=e.target.value}}><option value="claude-sonnet-4-20250514">Claude Sonnet 4</option><option value="claude-opus-4-20250514">Claude Opus 4</option><option value="claude-haiku-4-20250506">Claude Haiku 4</option></select></div></div>}
+      {panelTab==='prompt'&&(activeAgent?<div><div className="sysprompt-header"><div className="sysprompt-agent">{activeAgent.icon} {activeAgent.name}</div>{getCustomPrompts()[activeAgent.id]!==undefined&&<button className="sysprompt-reset" onClick={()=>{setCustomPrompt(activeAgent.id,null);document.querySelector('.sysprompt-editor').value=activeAgent.sys}}>Reset to default</button>}</div><textarea className="sysprompt-editor" defaultValue={getAgentPrompt(activeAgent)} onChange={e=>setCustomPrompt(activeAgent.id,e.target.value)} placeholder="Enter custom system prompt..." rows={8}/><div className="config-hint" style={{marginTop:8}}>Changes apply to the next message. Custom prompts persist in localStorage.</div></div>:<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>Select an agent to view its system prompt.</div>)}
       {panelTab==='policies'&&policies.map(p=>(<div key={p.id} className="policy-card"><div className="policy-header"><span className="policy-name">{p.icon} {p.name}</span><label className="toggle"><input type="checkbox" checked={p.enabled} onChange={()=>dispatch({type:'TOGGLE_POLICY',payload:p.id})}/><span className="slider"/></label></div><div className="policy-desc">{p.desc}</div></div>))}
       {panelTab==='events'&&(events.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>No events yet.</div>:events.map((ev,i)=>(<div key={i} className="event-item"><div className="event-dot" style={{background:ev.type==='error'?'var(--danger)':ev.type==='warning'?'var(--warning)':ev.type==='success'?'var(--success)':'var(--info)'}}/><div><div className="event-text">{ev.text}</div><div className="event-time">{new Date(ev.ts).toLocaleTimeString()}</div></div></div>)))}
       {panelTab==='dlq'&&(dlq.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>DLQ empty.</div>:dlq.map(d=>(<div key={d.id} className="dlq-item"><div className="dlq-reason">⚠ {d.reason}</div><div className="dlq-msg">"{d.message.slice(0,60)}..."</div><div className="dlq-actions"><button className="btn btn-sm" onClick={()=>dispatch({type:'REMOVE_DLQ',payload:d.id})}><RefreshIcon/> Replay</button><button className="btn btn-sm btn-danger" onClick={()=>dispatch({type:'REMOVE_DLQ',payload:d.id})}><TrashIcon/> Discard</button></div></div>)))}
@@ -569,7 +588,8 @@ function App(){
       for(const p of state.policies.filter(p=>p.enabled)){const r=p.check(cleanMsg);if(r.violations.length>0){r.violations.forEach(v=>dispatch({type:'ADD_EVENT',payload:{type:'warning',text:`[${p.name}] ${v}`,ts:Date.now()}}));if(p.id==='prompt-injection'||p.id==='financial-block'){dispatch({type:'ADD_DLQ',payload:{id:Date.now(),message:msg,reason:r.violations[0],agent:agent.id,ts:Date.now()}});dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🛡️ Blocked: ${r.violations[0]}`,ts:Date.now()}});dispatch({type:'SET_LOADING',payload:false});return}cleanMsg=r.clean}}
       const fin=FINLOCK.check(cleanMsg);if(fin.active){fin.warnings.forEach(w=>dispatch({type:'ADD_EVENT',payload:{type:'error',text:`[FIN-LOCK] ${w}`,ts:Date.now()}}));dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🔐 ${fin.warnings.join('; ')}`,ts:Date.now()}})}
       let ctx='';const sb=await querySupabase(cleanMsg);if(sb){ctx=`\n\n[Pipeline: ${sb.table}]\n${JSON.stringify(sb.data.slice(0,5),null,2)}`;dispatch({type:'ADD_EVENT',payload:{type:'info',text:`Supabase: ${sb.data.length} ${sb.table}`,ts:Date.now()}})}
-      const sysPr=`${agent.sys}\n\nAberdeen AI Gateway. Agent: ${agent.name} (${agent.cat}). Rate: ${agent.rate}. Demand: ${agent.demand}.\nFIN-LOCK: floor ${FINLOCK.marginFloor*100}%, ceiling $${FINLOCK.rateCeiling}/hr, limit $${FINLOCK.costLimit.toLocaleString()}.${ctx}`;
+      const agentSys=getAgentPrompt(agent);
+      const sysPr=`${agentSys}\n\nAberdeen AI Gateway. Agent: ${agent.name} (${agent.cat}). Rate: ${agent.rate}. Demand: ${agent.demand}.\nFIN-LOCK: floor ${FINLOCK.marginFloor*100}%, ceiling $${FINLOCK.rateCeiling}/hr, limit $${FINLOCK.costLimit.toLocaleString()}.${ctx}`;
       const chatMsgs=state.messages.filter(m=>m.role!=='system').map(m=>({role:m.role==='user'?'user':'assistant',content:m.content}));chatMsgs.push({role:'user',content:cleanMsg});
       dispatch({type:'ADD_EVENT',payload:{type:'info',text:`Calling Claude...`,ts:Date.now()}});
       dispatch({type:'ADD_MESSAGE',payload:{role:'assistant',content:'',ts:Date.now()}});
@@ -614,7 +634,11 @@ function App(){
           <div className="chat-header">
             <div className="agent-icon" style={{background:state.activeAgent.color+'20',color:state.activeAgent.color}}>{state.activeAgent.icon}</div>
             <div className="agent-info"><h2>{state.activeAgent.name} <span className="badge">{state.activeAgent.demand}</span></h2><p>{state.activeAgent.desc}</p></div>
-            <div className="chat-header-actions">{state.messages.length>0&&<button className="export-btn" onClick={()=>exportConversation(state.activeAgent.name,state.messages)}>Export</button>}<button className="btn btn-sm" onClick={()=>dispatch({type:'CLEAR_SESSION'})}><RefreshIcon/></button></div>
+            <div className="chat-header-actions">
+              {state.messages.length>0&&<>{(()=>{const t=estimateTokens(state.messages,state.activeAgent?.sys||'');const pct=Math.min((t/MAX_CONTEXT)*100,100);const color=pct>80?'var(--danger)':pct>50?'var(--warning)':'var(--accent)';return<div className="ctx-bar"><div className="ctx-track"><div className="ctx-fill" style={{width:`${pct}%`,background:color}}/></div><span>{(t/1000).toFixed(1)}k/{MAX_CONTEXT/1000}k</span></div>})()}
+              <button className="export-btn" onClick={()=>exportConversation(state.activeAgent.name,state.messages)}>Export</button></>}
+              <button className="btn btn-sm" onClick={()=>dispatch({type:'CLEAR_SESSION'})}><RefreshIcon/></button>
+            </div>
           </div>
           <div className="messages">
             {state.messages.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:'var(--text-muted)'}}>
