@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "name": "aberdeen-ai-gateway",
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "routes": [
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
