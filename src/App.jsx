@@ -3641,7 +3641,12 @@ export default function AberdeenUnified() {
     </div>
   </div>;
 
-  // Main app (authenticated)
+  // Main app (authenticated) — render inner shell
+  return <AberdeenShell authUser={authUser} onLogout={handleLogout} />;
+}
+
+function AberdeenShell({ authUser, onLogout }) {
+  const handleLogout = onLogout;
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
