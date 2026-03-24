@@ -1,5 +1,5 @@
 // ─── Policy Engine ───────────────────────────────────────────
-// Aberdeen AI Gateway v2.3.0 — Policy & routing logic
+// Aberdeen AI Gateway v3.0.0 — Policy & routing logic
 
 const POLICIES = [
   { id:'pii-redaction', name:'PII Redaction', icon:'🔒', desc:'Redacts SSN, email, phone patterns', enabled:true,
@@ -19,5 +19,3 @@ function routeMessage(msg,agents){const l=msg.toLowerCase();const s=agents.map(a
 
 // Returns top N candidates for disambiguation when scores are close
 function routeMessageWithCandidates(msg,agents,topN=3){const l=msg.toLowerCase();const s=agents.map(a=>{let sc=0;(a.kw||[]).forEach(k=>{if(l.includes(k.toLowerCase()))sc+=k.includes(' ')?3:2});(a.tags||[]).forEach(t=>{if(l.includes(t.toLowerCase()))sc+=1});if(a.tier===1)sc*=1.1;return{agent:a,score:sc}}).filter(x=>x.score>0);s.sort((a,b)=>b.score-a.score);if(s.length===0)return{best:null,ambiguous:false,candidates:[]};const best=s[0];const close=s.filter(x=>x.score>=best.score*0.7).slice(0,topN);return{best:best.agent,ambiguous:close.length>1&&best.score<8,candidates:close.map(x=>x.agent)};}
-
-async function querySupabase(msg){if(!CONFIG.SUPABASE_URL||!CONFIG.SUPABASE_KEY)return null;const l=msg.toLowerCase();let t=null;if(/candidate|applicant|resume|talent/.test(l))t='candidates';else if(/job|position|role|opening/.test(l))t='jobs';else if(/placement|hire|onboard/.test(l))t='placements';if(!t)return null;try{const r=await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,{headers:{'apikey':CONFIG.SUPABASE_KEY,'Authorization':`Bearer ${CONFIG.SUPABASE_KEY}`}});if(!r.ok)return null;return{table:t,data:await r.json()}}catch{return null}}
