@@ -1,55 +1,53 @@
 // Aberdeen AI Gateway — Auth Middleware (Vercel Edge)
-// Protects the app with invite codes stored in ABERDEEN_AUTH_CODES env var
+// Uses Web API (no Next.js dependency)
 // Set ABERDEEN_AUTH_CODES="code1,code2,code3" in Vercel dashboard
-// Users authenticate once, token stored in cookie for 30 days
-// To disable auth entirely, don't set the env var
-
-import { NextResponse } from 'next/server';
-
-const AUTH_COOKIE = 'aberdeen_auth';
-const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+// To disable auth, don't set the env var
 
 export const config = {
-  matcher: ['/((?!api/|_next/|favicon\\.ico).*)'],
+  matcher: ['/((?!api/|_next/|favicon\\.ico|js/).*)'],
 };
 
 export default function middleware(req) {
   const authCodes = process.env.ABERDEEN_AUTH_CODES;
 
-  // If no auth codes configured, allow all traffic
-  if (!authCodes) return NextResponse.next();
+  // No auth codes configured — allow all traffic
+  if (!authCodes) return;
 
   const validCodes = new Set(
     authCodes.split(',').map(c => c.trim().toLowerCase()).filter(Boolean)
   );
-  if (validCodes.size === 0) return NextResponse.next();
+  if (validCodes.size === 0) return;
 
+  // Parse cookies manually (no next/server)
+  const cookieHeader = req.headers.get('cookie') || '';
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return [k, v.join('=')];
+    }).filter(([k]) => k)
+  );
   // Check for valid auth cookie
-  const cookie = req.cookies.get(AUTH_COOKIE)?.value;
-  if (cookie && validCodes.has(cookie)) {
-    return NextResponse.next();
-  }
-  // Check for code in query param (login link: ?code=xxx)
+  const authCookie = cookies['aberdeen_auth'];
+  if (authCookie && validCodes.has(authCookie)) return;
+
+  // Check for code in query param (?code=xxx)
   const url = new URL(req.url);
   const codeParam = url.searchParams.get('code')?.toLowerCase();
   if (codeParam && validCodes.has(codeParam)) {
-    // Valid code — set cookie and redirect to clean URL
     url.searchParams.delete('code');
-    const res = NextResponse.redirect(url);
-    res.cookies.set(AUTH_COOKIE, codeParam, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: COOKIE_MAX_AGE,
-      path: '/',
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': url.toString(),
+        'Set-Cookie': `aberdeen_auth=${codeParam}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30*24*60*60}`,
+      },
     });
-    return res;
   }
 
-  // No valid auth — show login page
-  return new NextResponse(loginPage(), {
+  // No valid auth — return login page
+  return new Response(loginPage(), {
     status: 401,
-    headers: { 'Content-Type': 'text/html' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
 
@@ -62,7 +60,7 @@ function loginPage() {
 body{font-family:'DM Sans',system-ui,sans-serif;background:#0a0b0f;color:#e8eaf0;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .login{width:100%;max-width:380px;padding:32px;text-align:center}
 .logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#00d4aa,#00a88a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#0a0b0f;margin:0 auto 24px}
-h1{font-family:'Instrument Serif',serif;font-size:28px;font-weight:400;margin-bottom:8px}
+h1{font-size:28px;font-weight:400;margin-bottom:8px}
 h1 em{color:#00d4aa;font-style:italic}
 p{color:#8b8fa3;font-size:14px;margin-bottom:24px;line-height:1.5}
 form{display:flex;flex-direction:column;gap:12px}
