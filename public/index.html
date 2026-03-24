@@ -23,6 +23,30 @@
   --transition:180ms cubic-bezier(0.4,0,0.2,1);
   --safe-bottom:env(safe-area-inset-bottom,0px);--safe-top:env(safe-area-inset-top,0px);
 }
+[data-theme="light"]{
+  --bg-primary:#f5f6fa;--bg-secondary:#ffffff;--bg-tertiary:#ebedf3;--bg-elevated:#ffffff;
+  --text-primary:#1a1d26;--text-secondary:#555873;--text-muted:#8b8fa3;
+  --accent:#00a88a;--accent-dim:rgba(0,168,138,0.1);--accent-glow:rgba(0,168,138,0.2);
+  --danger:#e0365b;--warning:#e09a20;--info:#2b7fd4;--success:#00a88a;
+  --border:rgba(0,0,0,0.08);--border-active:rgba(0,168,138,0.35);
+  --shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-lg:0 12px 48px rgba(0,0,0,0.12);
+}
+[data-theme="light"] .msg.user .bubble{color:#fff}
+[data-theme="light"] .msg.assistant .bubble code{background:rgba(0,0,0,0.06)}
+[data-theme="light"] .msg.assistant .bubble pre{background:rgba(0,0,0,0.04)}
+[data-theme="light"] .msg.assistant .bubble th{background:rgba(0,0,0,0.04)}
+[data-theme="light"] ::selection{color:#fff}
+[data-theme="light"] ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15)}
+.theme-toggle{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;transition:var(--transition);padding:0}
+.theme-toggle:active{background:var(--bg-tertiary);color:var(--text-primary)}
+/* Shortcuts overlay */
+.shortcuts-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1100;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease-out}
+.shortcuts-modal{width:calc(100% - 32px);max-width:400px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:24px;animation:fadeUp 0.2s ease-out}
+.shortcuts-modal h3{font-size:16px;font-weight:600;margin-bottom:16px}
+.shortcut-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.shortcut-row:last-child{border-bottom:none}
+.shortcut-keys{display:flex;gap:4px}
+.shortcut-key{padding:3px 8px;border-radius:6px;background:var(--bg-tertiary);border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text-secondary)}
 html,body{height:100%;font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);overflow:hidden;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 ::selection{background:var(--accent);color:var(--bg-primary)}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -283,11 +307,16 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--bg-primary);
   .cmd-result:hover{background:var(--accent-dim)}
   .policy-card:hover{border-color:rgba(255,255,255,0.1)}
   .welcome-card:hover{border-color:var(--border-active);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .theme-toggle:hover{background:var(--bg-tertiary);color:var(--text-primary);border-color:var(--border-active)}
 }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<script>
+// Theme init — apply before React renders to prevent flash
+(function(){var t=localStorage.getItem('aberdeen_theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.querySelector('meta[name="theme-color"]').content=t==='light'?'#f5f6fa':'#0a0b0f'})();
+</script>
 <!-- CDN dependencies -->
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>

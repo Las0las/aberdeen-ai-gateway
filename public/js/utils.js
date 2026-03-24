@@ -28,7 +28,7 @@ const CONFIG = {
   SUPABASE_URL: (()=>{try{return localStorage.getItem('aberdeen_supabase_url')||''}catch{return ''}})(),
   SUPABASE_KEY: (()=>{try{return localStorage.getItem('aberdeen_supabase_key')||''}catch{return ''}})(),
   ANTHROPIC_KEY: (()=>{try{return localStorage.getItem('aberdeen_anthropic_key')||''}catch{return ''}})(),
-  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.3.0'
+  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.5.0'
 };
 
 // ─── Claude API (Streaming) ─────────────────────────────────
