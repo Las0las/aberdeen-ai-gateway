@@ -24,21 +24,21 @@ function estimateTokens(messages,sysPrompt){let chars=(sysPrompt||'').length;mes
 const MAX_CONTEXT=200000;
 // ─── Configuration ───────────────────────────────────────────
 const CONFIG = {
-  ANTHROPIC_MODEL: 'claude-sonnet-4-20250514',
+  ANTHROPIC_MODEL: (()=>{try{return localStorage.getItem('aberdeen_model')||'claude-sonnet-4-20250514'}catch{return 'claude-sonnet-4-20250514'}})(),
   SUPABASE_URL: (()=>{try{return localStorage.getItem('aberdeen_supabase_url')||''}catch{return ''}})(),
   SUPABASE_KEY: (()=>{try{return localStorage.getItem('aberdeen_supabase_key')||''}catch{return ''}})(),
-  ANTHROPIC_KEY: (()=>{try{return localStorage.getItem('aberdeen_anthropic_key')||''}catch{return ''}})(),
-  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.5.0'
+  MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.6.0'
 };
 
 // ─── Claude API (Streaming) ─────────────────────────────────
 async function callClaudeStream(messages,systemPrompt,onChunk){
-  if(!CONFIG.ANTHROPIC_KEY)return"⚠️ API key not configured. Open Settings → Config to add your Anthropic API key.";
   const body=JSON.stringify({model:CONFIG.ANTHROPIC_MODEL,max_tokens:2048,stream:true,system:systemPrompt,messages});
   let r;
-  try{r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','x-client-api-key':CONFIG.ANTHROPIC_KEY},body})}catch(proxyErr){r=null}
-  if(!r||!r.ok){r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body})}
-  if(!r.ok)throw new Error(`API ${r.status}`);
+  try{r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body})}catch(proxyErr){throw new Error('Network error — unable to reach the server.')}
+  if(r.status===429){const data=await r.json().catch(()=>({}));throw new Error(data.message||'Rate limited. Please wait a moment and try again.')}
+  if(r.status===503){throw new Error('API not configured on the server. Ask the admin to set ANTHROPIC_API_KEY in Vercel.')}
+  if(!r.ok){const data=await r.json().catch(()=>({}));throw new Error(data.message||data.error||`API error ${r.status}`)}
+  const remaining=r.headers.get('X-RateLimit-Remaining');if(remaining!==null)CONFIG._rateLimitRemaining=parseInt(remaining);
   const reader=r.body.getReader();const decoder=new TextDecoder();let full='';let buf='';
   while(true){const{done,value}=await reader.read();if(done)break;
     buf+=decoder.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop()||'';

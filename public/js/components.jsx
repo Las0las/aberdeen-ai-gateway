@@ -5,7 +5,7 @@
 const { useState, useReducer, useEffect, useRef, useCallback, useMemo } = React;
 
 // ─── State ───────────────────────────────────────────────────
-const initialState = { activeAgent:null, messages:[], events:[], dlq:[], policies:POLICIES, customAgents:[], panelTab:'config', showCmdPalette:false, showBuilder:false, showSidebar:false, showPanel:false, isLoading:false, totalRequests:0, routingAccuracy:95.2 };
+const initialState = { activeAgent:null, messages:[], events:[], dlq:[], policies:POLICIES, customAgents:[], panelTab:'config', showCmdPalette:false, showBuilder:false, showSidebar:false, showPanel:false, isLoading:false, totalRequests:0, routingAccuracy:95.2, disambiguateAgents:null };
 function reducer(s,a){switch(a.type){
   case 'SET_AGENT':return{...s,activeAgent:a.payload,messages:loadConversation(a.payload.id),showSidebar:false};
   case 'ADD_MESSAGE':return{...s,messages:[...s.messages,a.payload]};
@@ -26,6 +26,9 @@ function reducer(s,a){switch(a.type){
   case 'CLOSE_PANEL':return{...s,showPanel:false};
   case 'CLEAR_SESSION':if(s.activeAgent){saveConversation(s.activeAgent.id,[])}return{...s,messages:[],events:[]};
   case 'INCREMENT_REQUESTS':return{...s,totalRequests:s.totalRequests+1};
+  case 'REMOVE_LAST_MESSAGE':return{...s,messages:s.messages.slice(0,-1)};
+  case 'SET_DISAMBIGUATE':return{...s,disambiguateAgents:a.payload};
+  case 'CLEAR_DISAMBIGUATE':return{...s,disambiguateAgents:null};
   default:return s;
 }}
 // ─── Responsive hook ─────────────────────────────────────────
@@ -191,7 +194,7 @@ function RightPanel({state,dispatch,onClose}){
     <div className="panel-handle"/>
     <div className="panel-tabs">{['config','prompt','policies','events','dlq','metrics'].map(tab=>(<button key={tab} className={`panel-tab${panelTab===tab?' active':''}`} onClick={()=>dispatch({type:'SET_PANEL_TAB',payload:tab})}>{tab==='dlq'?'DLQ':tab.charAt(0).toUpperCase()+tab.slice(1)}</button>))}</div>
     <div className="panel-content">
-      {panelTab==='config'&&<div className="config-section"><h4 style={{fontSize:13,fontWeight:600,marginBottom:16,color:'var(--text-primary)'}}>API Configuration</h4><div className="config-field"><label className="config-label">Anthropic API Key</label><input type="password" className="config-input" placeholder="sk-ant-..." defaultValue={CONFIG.ANTHROPIC_KEY} onChange={e=>{CONFIG.ANTHROPIC_KEY=e.target.value;try{localStorage.setItem('aberdeen_anthropic_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Required for AI responses. Get yours at <a href="https://console.anthropic.com" target="_blank" rel="noopener" style={{color:'var(--accent)'}}>console.anthropic.com</a></div></div><div className="config-field"><label className="config-label">Supabase URL</label><input type="text" className="config-input" placeholder="https://xxx.supabase.co" defaultValue={CONFIG.SUPABASE_URL} onChange={e=>{CONFIG.SUPABASE_URL=e.target.value;try{localStorage.setItem('aberdeen_supabase_url',e.target.value)}catch(ex){}}}/></div><div className="config-field"><label className="config-label">Supabase Key</label><input type="password" className="config-input" placeholder="eyJ..." defaultValue={CONFIG.SUPABASE_KEY} onChange={e=>{CONFIG.SUPABASE_KEY=e.target.value;try{localStorage.setItem('aberdeen_supabase_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Optional. Enables NorthStar pipeline queries.</div></div><div className="config-field"><label className="config-label">Model</label><select className="config-input" defaultValue={CONFIG.ANTHROPIC_MODEL} onChange={e=>{CONFIG.ANTHROPIC_MODEL=e.target.value}}><option value="claude-sonnet-4-20250514">Claude Sonnet 4</option><option value="claude-opus-4-20250514">Claude Opus 4</option><option value="claude-haiku-4-20250506">Claude Haiku 4</option></select></div></div>}
+      {panelTab==='config'&&<div className="config-section"><h4 style={{fontSize:13,fontWeight:600,marginBottom:16,color:'var(--text-primary)'}}>Configuration</h4><div style={{padding:12,borderRadius:'var(--radius-sm)',background:'var(--accent-dim)',border:'1px solid var(--border-active)',marginBottom:16}}><div style={{fontSize:12,fontWeight:600,color:'var(--accent)',marginBottom:4}}>🔒 API Key Secured</div><div style={{fontSize:11,color:'var(--text-secondary)',lineHeight:1.5}}>The Anthropic API key is configured server-side. No keys are stored in your browser.</div></div><div className="config-field"><label className="config-label">Model</label><select className="config-input" defaultValue={CONFIG.ANTHROPIC_MODEL} onChange={e=>{CONFIG.ANTHROPIC_MODEL=e.target.value;try{localStorage.setItem('aberdeen_model',e.target.value)}catch{}}}><option value="claude-sonnet-4-20250514">Claude Sonnet 4</option><option value="claude-opus-4-20250514">Claude Opus 4</option><option value="claude-haiku-4-20250506">Claude Haiku 4</option></select></div>{CONFIG._rateLimitRemaining!==undefined&&<div className="config-field"><label className="config-label">Rate Limit</label><div style={{fontSize:13,color:'var(--text-secondary)'}}>{CONFIG._rateLimitRemaining} requests remaining this minute</div></div>}<div className="config-field" style={{marginTop:12}}><label className="config-label">Supabase URL</label><input type="text" className="config-input" placeholder="https://xxx.supabase.co" defaultValue={CONFIG.SUPABASE_URL} onChange={e=>{CONFIG.SUPABASE_URL=e.target.value;try{localStorage.setItem('aberdeen_supabase_url',e.target.value)}catch(ex){}}}/></div><div className="config-field"><label className="config-label">Supabase Key</label><input type="password" className="config-input" placeholder="eyJ..." defaultValue={CONFIG.SUPABASE_KEY} onChange={e=>{CONFIG.SUPABASE_KEY=e.target.value;try{localStorage.setItem('aberdeen_supabase_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Optional. Enables NorthStar pipeline queries.</div></div></div>}
       {panelTab==='prompt'&&(activeAgent?<div><div className="sysprompt-header"><div className="sysprompt-agent">{activeAgent.icon} {activeAgent.name}</div>{getCustomPrompts()[activeAgent.id]!==undefined&&<button className="sysprompt-reset" onClick={()=>{setCustomPrompt(activeAgent.id,null);document.querySelector('.sysprompt-editor').value=activeAgent.sys}}>Reset to default</button>}</div><textarea className="sysprompt-editor" defaultValue={getAgentPrompt(activeAgent)} onChange={e=>setCustomPrompt(activeAgent.id,e.target.value)} placeholder="Enter custom system prompt..." rows={8}/><div className="config-hint" style={{marginTop:8}}>Changes apply to the next message. Custom prompts persist in localStorage.</div></div>:<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>Select an agent to view its system prompt.</div>)}
       {panelTab==='policies'&&policies.map(p=>(<div key={p.id} className="policy-card"><div className="policy-header"><span className="policy-name">{p.icon} {p.name}</span><label className="toggle"><input type="checkbox" checked={p.enabled} onChange={()=>dispatch({type:'TOGGLE_POLICY',payload:p.id})}/><span className="slider"/></label></div><div className="policy-desc">{p.desc}</div></div>))}
       {panelTab==='events'&&(events.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>No events yet.</div>:events.map((ev,i)=>(<div key={i} className="event-item"><div className="event-dot" style={{background:ev.type==='error'?'var(--danger)':ev.type==='warning'?'var(--warning)':ev.type==='success'?'var(--success)':'var(--info)'}}/><div><div className="event-text">{ev.text}</div><div className="event-time">{new Date(ev.ts).toLocaleTimeString()}</div></div></div>)))}
@@ -229,19 +232,15 @@ function App(){
   useEffect(()=>{const h=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();dispatch({type:'TOGGLE_CMD'})}if(e.key==='?'&&!e.metaKey&&!e.ctrlKey&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA'){e.preventDefault();setShowShortcuts(s=>!s)}if(e.key==='Escape'){if(showShortcuts){setShowShortcuts(false);return}if(state.showCmdPalette)dispatch({type:'TOGGLE_CMD'});if(state.showSidebar)dispatch({type:'CLOSE_SIDEBAR'});if(state.showPanel)dispatch({type:'CLOSE_PANEL'})}};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[state.showCmdPalette,state.showSidebar,state.showPanel,showShortcuts]);
   useEffect(()=>{if(textareaRef.current){textareaRef.current.style.height='auto';textareaRef.current.style.height=Math.min(textareaRef.current.scrollHeight,120)+'px'}},[input]);
 
-  // ─── Execution Spine ─────────────────────────────────────
-  const handleSend=useCallback(async()=>{
-    const msg=input.trim();if(!msg||state.isLoading)return;
-    setInput('');dispatch({type:'SET_LOADING',payload:true});dispatch({type:'INCREMENT_REQUESTS'});
-    dispatch({type:'ADD_MESSAGE',payload:{role:'user',content:msg,ts:Date.now()}});
+  // ─── Core send logic (used by both send and regenerate) ──
+  const executeSend=useCallback(async(msg,agent)=>{
+    dispatch({type:'SET_LOADING',payload:true});dispatch({type:'INCREMENT_REQUESTS'});
     dispatch({type:'ADD_EVENT',payload:{type:'info',text:`Message (${msg.length} chars)`,ts:Date.now()}});
-    trackEvent('message_sent', { agent: state.activeAgent?.id, len: msg.length });
+    trackEvent('message_sent', { agent: agent?.id, len: msg.length });
     try{
-      let agent=state.activeAgent;
-      if(!agent){agent=routeMessage(msg,allAgents);if(agent){dispatch({type:'SET_AGENT',payload:agent});dispatch({type:'ADD_EVENT',payload:{type:'success',text:`Routed → ${agent.name}`,ts:Date.now()}});dispatch({type:'ADD_MESSAGE',payload:{role:'user',content:msg,ts:Date.now()}})}}
-      if(!agent){dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:'No matching agent. Open the sidebar to pick one.',ts:Date.now()}});dispatch({type:'SET_LOADING',payload:false});return}
       let cleanMsg=msg;
-      for(const p of state.policies.filter(p=>p.enabled)){const r=p.check(cleanMsg);if(r.violations.length>0){r.violations.forEach(v=>dispatch({type:'ADD_EVENT',payload:{type:'warning',text:`[${p.name}] ${v}`,ts:Date.now()}}));if(p.id==='prompt-injection'||p.id==='financial-block'){dispatch({type:'ADD_DLQ',payload:{id:Date.now(),message:msg,reason:r.violations[0],agent:agent.id,ts:Date.now()}});dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🛡️ Blocked: ${r.violations[0]}`,ts:Date.now()}});dispatch({type:'SET_LOADING',payload:false});return}cleanMsg=r.clean}}      const fin=FINLOCK.check(cleanMsg);if(fin.active){fin.warnings.forEach(w=>dispatch({type:'ADD_EVENT',payload:{type:'error',text:`[FIN-LOCK] ${w}`,ts:Date.now()}}));dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🔐 ${fin.warnings.join('; ')}`,ts:Date.now()}})}
+      for(const p of state.policies.filter(p=>p.enabled)){const r=p.check(cleanMsg);if(r.violations.length>0){r.violations.forEach(v=>dispatch({type:'ADD_EVENT',payload:{type:'warning',text:`[${p.name}] ${v}`,ts:Date.now()}}));if(p.id==='prompt-injection'||p.id==='financial-block'){dispatch({type:'ADD_DLQ',payload:{id:Date.now(),message:msg,reason:r.violations[0],agent:agent.id,ts:Date.now()}});dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🛡️ Blocked: ${r.violations[0]}`,ts:Date.now()}});dispatch({type:'SET_LOADING',payload:false});return}cleanMsg=r.clean}}
+      const fin=FINLOCK.check(cleanMsg);if(fin.active){fin.warnings.forEach(w=>dispatch({type:'ADD_EVENT',payload:{type:'error',text:`[FIN-LOCK] ${w}`,ts:Date.now()}}));dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`🔐 ${fin.warnings.join('; ')}`,ts:Date.now()}})}
       let ctx='';const sb=await querySupabase(cleanMsg);if(sb){ctx=`\n\n[Pipeline: ${sb.table}]\n${JSON.stringify(sb.data.slice(0,5),null,2)}`;dispatch({type:'ADD_EVENT',payload:{type:'info',text:`Supabase: ${sb.data.length} ${sb.table}`,ts:Date.now()}})}
       const agentSys=getAgentPrompt(agent);
       const sysPr=`${agentSys}\n\nAberdeen AI Gateway. Agent: ${agent.name} (${agent.cat}). Rate: ${agent.rate}. Demand: ${agent.demand}.\nFIN-LOCK: floor ${FINLOCK.marginFloor*100}%, ceiling $${FINLOCK.rateCeiling}/hr, limit $${FINLOCK.costLimit.toLocaleString()}.${ctx}`;
@@ -252,9 +251,49 @@ function App(){
       dispatch({type:'UPDATE_LAST_MESSAGE',payload:response});
       dispatch({type:'ADD_EVENT',payload:{type:'success',text:`Response (${response.length} chars)`,ts:Date.now()}});
       trackEvent('response_received', { agent: agent.id, len: response.length });
-    }catch(err){dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`❌ ${err.message}`,ts:Date.now()}});dispatch({type:'ADD_EVENT',payload:{type:'error',text:err.message,ts:Date.now()}})}
-    finally{dispatch({type:'SET_LOADING',payload:false})}
-  },[input,state.activeAgent,state.isLoading,state.policies,state.messages,allAgents]);
+    }catch(err){
+      // Remove empty assistant message on error
+      dispatch({type:'REMOVE_LAST_MESSAGE'});
+      dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:`❌ ${err.message}`,ts:Date.now(),error:true}});
+      dispatch({type:'ADD_EVENT',payload:{type:'error',text:err.message,ts:Date.now()}});
+    }finally{dispatch({type:'SET_LOADING',payload:false})}
+  },[state.policies,state.messages,allAgents]);
+
+  // ─── Execution Spine ─────────────────────────────────────
+  const handleSend=useCallback(async()=>{
+    const msg=input.trim();if(!msg||state.isLoading)return;
+    setInput('');
+    dispatch({type:'ADD_MESSAGE',payload:{role:'user',content:msg,ts:Date.now()}});
+    let agent=state.activeAgent;
+    if(!agent){
+      const result=routeMessageWithCandidates(msg,allAgents);
+      if(!result.best){dispatch({type:'ADD_MESSAGE',payload:{role:'system',content:'No matching agent. Open the sidebar to pick one.',ts:Date.now()}});return}
+      if(result.ambiguous){dispatch({type:'SET_DISAMBIGUATE',payload:{candidates:result.candidates,pendingMsg:msg}});return}
+      agent=result.best;dispatch({type:'SET_AGENT',payload:agent});addRecentAgent(agent.id);dispatch({type:'ADD_EVENT',payload:{type:'success',text:`Routed → ${agent.name}`,ts:Date.now()}});
+    }
+    await executeSend(msg,agent);
+  },[input,state.activeAgent,state.isLoading,allAgents,executeSend]);
+
+  // ─── Regenerate last response ─────────────────────────────
+  const handleRegenerate=useCallback(async()=>{
+    if(state.isLoading||!state.activeAgent||state.messages.length<2)return;
+    const lastUserMsg=[...state.messages].reverse().find(m=>m.role==='user');
+    if(!lastUserMsg)return;
+    // Remove last assistant/system messages until we hit the user message
+    let toRemove=0;
+    for(let i=state.messages.length-1;i>=0;i--){if(state.messages[i].role==='user')break;toRemove++}
+    for(let i=0;i<toRemove;i++)dispatch({type:'REMOVE_LAST_MESSAGE'});
+    await executeSend(lastUserMsg.content,state.activeAgent);
+  },[state.isLoading,state.activeAgent,state.messages,executeSend]);
+
+  // ─── Disambiguation handler ───────────────────────────────
+  const handleDisambiguate=useCallback(async(agent)=>{
+    const pending=state.disambiguateAgents?.pendingMsg;
+    dispatch({type:'CLEAR_DISAMBIGUATE'});
+    dispatch({type:'SET_AGENT',payload:agent});addRecentAgent(agent.id);
+    dispatch({type:'ADD_EVENT',payload:{type:'success',text:`Selected → ${agent.name}`,ts:Date.now()}});
+    if(pending)await executeSend(pending,agent);
+  },[state.disambiguateAgents,executeSend]);
 
   const handleKeyDown=(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}};
   const selectAgent=(a)=>{dispatch({type:'SET_AGENT',payload:a});addRecentAgent(a.id);dispatch({type:'ADD_EVENT',payload:{type:'info',text:`→ ${a.name}`,ts:Date.now()}});trackEvent('agent_selected', { agent: a.id });textareaRef.current?.focus()};
@@ -307,6 +346,7 @@ function App(){
               {m.role==='assistant'?<div className="bubble" dangerouslySetInnerHTML={renderMd(m.content)}/>:<div className="bubble">{m.content}</div>}
             </div>))}
             {state.isLoading&&<div className="typing"><span/><span/><span/></div>}
+            {!state.isLoading&&state.messages.length>=2&&state.messages[state.messages.length-1]?.role!=='user'&&<div style={{display:'flex',justifyContent:'center',padding:'4px 0'}}><button className="btn btn-sm" onClick={handleRegenerate} style={{fontSize:11,gap:4}}><RefreshIcon/> Regenerate</button></div>}
             <div ref={messagesEndRef}/>
           </div>
           <div className="input-area">
@@ -337,6 +377,16 @@ function App(){
       {state.showCmdPalette && <CommandPalette agents={allAgents} onSelect={selectAgent} onClose={()=>dispatch({type:'TOGGLE_CMD'})}/>}
       {state.showBuilder && <AgentBuilder onSave={(a)=>dispatch({type:'ADD_CUSTOM_AGENT',payload:a})} onClose={()=>dispatch({type:'TOGGLE_BUILDER'})}/>}
       {showShortcuts && <ShortcutsOverlay onClose={()=>setShowShortcuts(false)}/>}
+      {state.disambiguateAgents && <div className="cmd-overlay" onClick={()=>dispatch({type:'CLEAR_DISAMBIGUATE'})}><div className="cmd-palette" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
+        <div style={{padding:'16px 16px 8px',fontSize:14,fontWeight:600}}>Multiple agents match your query</div>
+        <div style={{padding:'0 16px 8px',fontSize:12,color:'var(--text-muted)'}}>Select the most relevant agent:</div>
+        <div className="cmd-results">{state.disambiguateAgents.candidates.map(a=>(<div key={a.id} className="cmd-result" onClick={()=>handleDisambiguate(a)}>
+          <div className="cmd-icon" style={{background:a.color+'20',color:a.color}}>{a.icon}</div>
+          <div style={{flex:1}}><div className="cmd-name">{a.name}</div><div className="cmd-cat">{a.desc}</div></div>
+          <span className={`tier tier-${a.tier}`} style={{position:'static',transform:'none'}}>T{a.tier}</span>
+        </div>))}</div>
+        <div style={{padding:'8px 16px 16px',textAlign:'center'}}><button className="btn btn-sm" onClick={()=>dispatch({type:'CLEAR_DISAMBIGUATE'})} style={{fontSize:11}}>Cancel</button></div>
+      </div></div>}
     </div>
   );
 }
