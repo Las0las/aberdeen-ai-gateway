@@ -119,6 +119,12 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--bg-primary);
 .panel-tab{flex:1;padding:12px 8px;font-size:12px;font-weight:500;color:var(--text-muted);background:transparent;border:none;cursor:pointer;text-align:center;transition:var(--transition);border-bottom:2px solid transparent;min-height:44px}
 .panel-tab:active{color:var(--text-secondary)}
 .panel-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.config-section{display:flex;flex-direction:column;gap:16px}
+.config-field{display:flex;flex-direction:column;gap:4px}
+.config-label{font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px}
+.config-input{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;outline:none;transition:var(--transition);min-height:44px}
+.config-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,255,170,0.1)}
+.config-hint{font-size:11px;color:var(--text-muted);line-height:1.4}
 .panel-content{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
 /* Policy, Event, DLQ, Metric cards */
 .policy-card{padding:12px;border-radius:var(--radius-sm);background:var(--bg-tertiary);border:1px solid var(--border);margin-bottom:8px}
@@ -270,7 +276,9 @@ const { useState, useReducer, useEffect, useRef, useCallback, useMemo } = React;
 // ─── Configuration ───────────────────────────────────────────
 const CONFIG = {
   ANTHROPIC_MODEL: 'claude-sonnet-4-20250514',
-  SUPABASE_URL: '', SUPABASE_KEY: '', ANTHROPIC_KEY: '',
+  SUPABASE_URL: (()=>{try{return localStorage.getItem('aberdeen_supabase_url')||''}catch{return ''}})(),
+  SUPABASE_KEY: (()=>{try{return localStorage.getItem('aberdeen_supabase_key')||''}catch{return ''}})(),
+  ANTHROPIC_KEY: (()=>{try{return localStorage.getItem('aberdeen_anthropic_key')||''}catch{return ''}})(),
   MAX_RETRIES: 3, RATE_LIMIT_MS: 1000, SESSION_KEY: 'gw-state', VERSION: '2.1.0'
 };
 
@@ -336,7 +344,7 @@ async function querySupabase(msg){if(!CONFIG.SUPABASE_URL||!CONFIG.SUPABASE_KEY)
 async function callClaude(messages,systemPrompt){if(!CONFIG.ANTHROPIC_KEY)return"⚠️ API key not configured. Set CONFIG.ANTHROPIC_KEY to enable AI responses.";const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CONFIG.ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:CONFIG.ANTHROPIC_MODEL,max_tokens:2048,system:systemPrompt,messages})});if(!r.ok)throw new Error(`API ${r.status}`);const d=await r.json();return d.content?.[0]?.text||'No response.';}
 
 // ─── State ───────────────────────────────────────────────────
-const initialState = { activeAgent:null, messages:[], events:[], dlq:[], policies:POLICIES, customAgents:[], panelTab:'policies', showCmdPalette:false, showBuilder:false, showSidebar:false, showPanel:false, isLoading:false, totalRequests:0, routingAccuracy:95.2 };
+const initialState = { activeAgent:null, messages:[], events:[], dlq:[], policies:POLICIES, customAgents:[], panelTab:'config', showCmdPalette:false, showBuilder:false, showSidebar:false, showPanel:false, isLoading:false, totalRequests:0, routingAccuracy:95.2 };
 function reducer(s,a){switch(a.type){
   case 'SET_AGENT':return{...s,activeAgent:a.payload,messages:[],showSidebar:false};
   case 'ADD_MESSAGE':return{...s,messages:[...s.messages,a.payload]};
@@ -456,8 +464,9 @@ function RightPanel({state,dispatch,onClose}){
   const allAgents=[...AGENTS,...state.customAgents];
   return(<div className="panel">
     <div className="panel-handle"/>
-    <div className="panel-tabs">{['policies','events','dlq','metrics'].map(tab=>(<button key={tab} className={`panel-tab${panelTab===tab?' active':''}`} onClick={()=>dispatch({type:'SET_PANEL_TAB',payload:tab})}>{tab==='dlq'?'DLQ':tab.charAt(0).toUpperCase()+tab.slice(1)}</button>))}</div>
+    <div className="panel-tabs">{['config','policies','events','dlq','metrics'].map(tab=>(<button key={tab} className={`panel-tab${panelTab===tab?' active':''}`} onClick={()=>dispatch({type:'SET_PANEL_TAB',payload:tab})}>{tab==='dlq'?'DLQ':tab.charAt(0).toUpperCase()+tab.slice(1)}</button>))}</div>
     <div className="panel-content">
+      {panelTab==='config'&&<div className="config-section"><h4 style={{fontSize:13,fontWeight:600,marginBottom:16,color:'var(--text-primary)'}}>API Configuration</h4><div className="config-field"><label className="config-label">Anthropic API Key</label><input type="password" className="config-input" placeholder="sk-ant-..." defaultValue={CONFIG.ANTHROPIC_KEY} onChange={e=>{CONFIG.ANTHROPIC_KEY=e.target.value;try{localStorage.setItem('aberdeen_anthropic_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Required for AI responses. Get yours at <a href="https://console.anthropic.com" target="_blank" rel="noopener" style={{color:'var(--accent)'}}>console.anthropic.com</a></div></div><div className="config-field"><label className="config-label">Supabase URL</label><input type="text" className="config-input" placeholder="https://xxx.supabase.co" defaultValue={CONFIG.SUPABASE_URL} onChange={e=>{CONFIG.SUPABASE_URL=e.target.value;try{localStorage.setItem('aberdeen_supabase_url',e.target.value)}catch(ex){}}}/></div><div className="config-field"><label className="config-label">Supabase Key</label><input type="password" className="config-input" placeholder="eyJ..." defaultValue={CONFIG.SUPABASE_KEY} onChange={e=>{CONFIG.SUPABASE_KEY=e.target.value;try{localStorage.setItem('aberdeen_supabase_key',e.target.value)}catch(ex){}}}/><div className="config-hint">Optional. Enables NorthStar pipeline queries.</div></div><div className="config-field"><label className="config-label">Model</label><select className="config-input" defaultValue={CONFIG.ANTHROPIC_MODEL} onChange={e=>{CONFIG.ANTHROPIC_MODEL=e.target.value}}><option value="claude-sonnet-4-20250514">Claude Sonnet 4</option><option value="claude-opus-4-20250514">Claude Opus 4</option><option value="claude-haiku-4-20250506">Claude Haiku 4</option></select></div></div>}
       {panelTab==='policies'&&policies.map(p=>(<div key={p.id} className="policy-card"><div className="policy-header"><span className="policy-name">{p.icon} {p.name}</span><label className="toggle"><input type="checkbox" checked={p.enabled} onChange={()=>dispatch({type:'TOGGLE_POLICY',payload:p.id})}/><span className="slider"/></label></div><div className="policy-desc">{p.desc}</div></div>))}
       {panelTab==='events'&&(events.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>No events yet.</div>:events.map((ev,i)=>(<div key={i} className="event-item"><div className="event-dot" style={{background:ev.type==='error'?'var(--danger)':ev.type==='warning'?'var(--warning)':ev.type==='success'?'var(--success)':'var(--info)'}}/><div><div className="event-text">{ev.text}</div><div className="event-time">{new Date(ev.ts).toLocaleTimeString()}</div></div></div>)))}
       {panelTab==='dlq'&&(dlq.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-muted)',fontSize:13}}>DLQ empty.</div>:dlq.map(d=>(<div key={d.id} className="dlq-item"><div className="dlq-reason">⚠ {d.reason}</div><div className="dlq-msg">"{d.message.slice(0,60)}..."</div><div className="dlq-actions"><button className="btn btn-sm" onClick={()=>dispatch({type:'REMOVE_DLQ',payload:d.id})}><RefreshIcon/> Replay</button><button className="btn btn-sm btn-danger" onClick={()=>dispatch({type:'REMOVE_DLQ',payload:d.id})}><TrashIcon/> Discard</button></div></div>)))}
