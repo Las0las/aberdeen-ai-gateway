@@ -12,7 +12,7 @@ import {
 
 // ═══ SUPABASE CONFIG ═══
 const SB_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NTIwNTEsImV4cCI6MjA4NzEyODA1MX0.6Cf1fnYL2jaJORCfaf_uGrJ3f2Xkf_k6pC8j34fWfXY";
 const sbHeaders = { apikey: SB_KEY, "Content-Type": "application/json" };
 const sbFetch = (path, opts = {}) => fetch(`${SB_URL}${path}`, { ...opts, headers: { ...sbHeaders, ...opts.headers } });
 
