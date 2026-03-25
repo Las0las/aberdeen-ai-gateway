@@ -6,6 +6,14 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
+    "api/edge.js": {
+      "memory": 256,
+      "maxDuration": 60
+    },
+    "api/chat.js": {
+      "memory": 256,
+      "maxDuration": 60
+    },
     "api/*.js": {
       "memory": 256,
       "maxDuration": 60

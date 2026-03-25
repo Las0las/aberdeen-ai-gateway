@@ -10,6 +10,12 @@ import {
   LayoutGrid, List, UserPlus, Globe, CheckCircle, Menu
 } from "lucide-react";
 
+// ═══ SUPABASE CONFIG ═══
+const SB_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
+const sbHeaders = { apikey: SB_KEY, "Content-Type": "application/json" };
+const sbFetch = (path, opts = {}) => fetch(`${SB_URL}${path}`, { ...opts, headers: { ...sbHeaders, ...opts.headers } });
+
 // ═══ DESIGN TOKENS — VICE BRAND SYSTEM ═══
 // Vice Blue (#41B6E6) = Execution · Vice Fuchsia (#DB3EB1) = Signal
 // Obsidian canvas · Outfit + JetBrains Mono · Spring curves
@@ -984,10 +990,8 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
   // Fetch file attachments from Supabase on mount
   useEffect(() => {
     if (!record.id) return;
-    const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
     (async () => { try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/file_attachments?entity_id=eq.${record.id}&deleted_at=is.null&order=created_at.desc`, { headers: { apikey: SUPABASE_KEY } });
+      const res = await sbFetch("/rest/v1/file_attachments?entity_id=eq.${record.id}&deleted_at=is.null&order=created_at.desc", { headers: { apikey: SB_KEY } });
       if (res.ok) { const rows = await res.json(); if (rows.length > 0) setDocuments(prev => [...rows.map(r => ({ id: r.id, name: r.file_name, type: r.category || "other", size: r.file_size ? (r.file_size > 1048576 ? `${(r.file_size / 1048576).toFixed(1)} MB` : `${Math.round(r.file_size / 1024)} KB`) : "—", uploadedBy: r.uploaded_by || "System", uploadedAt: r.created_at, mimeType: r.mime_type, url: r.storage_path, _fromDb: true })), ...prev.filter(p => !p._fromDb)]); }
     } catch (e) {} })();
   }, [record.id]);
@@ -1034,47 +1038,39 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
   const [liveNotes, setLiveNotes] = useState([]);
   useEffect(() => {
     if (subsLoaded) return;
-    const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
     (async () => { try {
       // Fetch submissions with joins
-      const sRes = await fetch(`${SUPABASE_URL}/rest/v1/submissions?select=id,candidate_id,job_id,status,current_stage,match_score,cover_note,created_at,candidates(first_name,last_name),jobs(title,client_name)&order=created_at.desc&limit=50`, { headers: { apikey: SUPABASE_KEY } });
+      const sRes = await sbFetch("/rest/v1/submissions?select=id,candidate_id,job_id,status,current_stage,match_score,cover_note,created_at,candidates(first_name,last_name),jobs(title,client_name)&order=created_at.desc&limit=50", { headers: { apikey: SB_KEY } });
       if (sRes.ok) { const rows = await sRes.json(); setLiveSubs(rows.map(r => ({ ...r, candidate_name: r.candidates ? `${r.candidates.first_name || ""} ${r.candidates.last_name || ""}`.trim() : "Unknown", job_title: r.jobs?.title || "Unknown", client_name: r.jobs?.client_name || "" }))); }
       // Fetch interviews with joins
-      const iRes = await fetch(`${SUPABASE_URL}/rest/v1/interviews?select=id,candidate_id,job_id,interview_type,scheduled_at,duration_minutes,status,interviewers,meeting_url,notes,outcome,score,created_at,candidates(first_name,last_name),jobs(title)&order=scheduled_at.desc&limit=50`, { headers: { apikey: SUPABASE_KEY } });
+      const iRes = await sbFetch("/rest/v1/interviews?select=id,candidate_id,job_id,interview_type,scheduled_at,duration_minutes,status,interviewers,meeting_url,notes,outcome,score,created_at,candidates(first_name,last_name),jobs(title)&order=scheduled_at.desc&limit=50", { headers: { apikey: SB_KEY } });
       if (iRes.ok) { const rows = await iRes.json(); const mapped = rows.map(r => ({ ...r, candidate_name: r.candidates ? `${r.candidates.first_name || ""} ${r.candidates.last_name || ""}`.trim() : "Unknown", job_title: r.jobs?.title || "", type: r.interview_type, date: r.scheduled_at ? r.scheduled_at.split("T")[0] : "", time: r.scheduled_at ? r.scheduled_at.split("T")[1]?.slice(0, 5) : "", interviewer_name: (r.interviewers || [])[0] || "TBD", teams_link: r.meeting_url })); setInterviews(prev => [...mapped, ...prev.filter(p => !mapped.find(m => m.id === p.id))]); }
       // Fetch notes
-      const nRes = await fetch(`${SUPABASE_URL}/rest/v1/notes?select=id,entity_type,entity_id,content,author,pinned,created_at&order=created_at.desc&limit=100`, { headers: { apikey: SUPABASE_KEY } });
+      const nRes = await sbFetch("/rest/v1/notes?select=id,entity_type,entity_id,content,author,pinned,created_at&order=created_at.desc&limit=100", { headers: { apikey: SB_KEY } });
       if (nRes.ok) { const rows = await nRes.json(); setLiveNotes(rows); }
     } catch (e) {} setSubsLoaded(true); })();
   }, [subsLoaded]);
   // Fetch client contacts from Supabase
   useEffect(() => {
     if (config.name !== "Clients" || !record.id) return;
-    const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
     (async () => { try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/client_contacts?client_id=eq.${record.id}&select=id,name,email,phone,role,is_primary&order=is_primary.desc,created_at`, { headers: { apikey: SUPABASE_KEY } });
+      const res = await sbFetch("/rest/v1/client_contacts?client_id=eq.${record.id}&select=id,name,email,phone,role,is_primary&order=is_primary.desc,created_at", { headers: { apikey: SB_KEY } });
       if (res.ok) { const rows = await res.json(); if (rows.length > 0) setContacts(rows.map(r => ({ ...r, isPrimary: r.is_primary }))); }
     } catch (e) {} })();
   }, [record.id, config.name]);
   // Fetch esig requests from Supabase
   useEffect(() => {
     if (config.name !== "Offers" || !record.id) return;
-    const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
     (async () => { try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/esig_requests?select=id,document_name,signer_name,signer_email,status,sent_at,viewed_at,signed_at,declined_at,created_at&order=created_at.desc`, { headers: { apikey: SUPABASE_KEY } });
+      const res = await sbFetch("/rest/v1/esig_requests?select=id,document_name,signer_name,signer_email,status,sent_at,viewed_at,signed_at,declined_at,created_at&order=created_at.desc", { headers: { apikey: SB_KEY } });
       if (res.ok) { const rows = await res.json(); if (rows.length > 0) setEnvelopes(rows.map(r => ({ ...r, emailSubject: r.document_name, signers: [{ name: r.signer_name, email: r.signer_email, role: "candidate", signed: r.status === "signed" }] }))); }
     } catch (e) {} })();
   }, [record.id, config.name]);
   // Helper: upload document to Supabase Storage
   const uploadToStorage = async (file, docId) => {
     try {
-      const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-      const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-      const path = `${config.table}/${record.id}/${docId}-${file.name}`;
-      await fetch(`${SUPABASE_URL}/storage/v1/object/documents/${path}`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": file.type }, body: file });
+          const path = `${config.table}/${record.id}/${docId}-${file.name}`;
+      await fetch(`${SUPABASE_URL}/storage/v1/object/documents/${path}`, { method: "POST", body: file });
       return `${SUPABASE_URL}/storage/v1/object/public/documents/${path}`;
     } catch (e) { return null; }
   };
@@ -1083,11 +1079,9 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
   const saveEdits = async () => {
     setEditSaving(true);
     try {
-      const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-      const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-      const table = config.table;
+          const table = config.table;
       if (table && record.id) {
-        await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${record.id}`, { method: "PATCH", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(editForm) });
+        await sbFetch("/rest/v1/${table}?id=eq.${record.id}", { method: "PATCH", body: JSON.stringify(editForm) });
       }
     } catch (e) { if (window.__aberdeen_toast) window.__aberdeen_toast("Save failed: " + e.message, "error"); }
     // Update local record
@@ -1117,10 +1111,8 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
     if (!submitJob) return;
     setSubmitting(true);
     try {
-      const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-      const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-      const body = { candidate_id: record.id, job_id: submitJob.id, status: "active", current_stage: "submitted", cover_note: submitNote || null, match_score: submitJob._matchScore || null };
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/submissions`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(body) });
+          const body = { candidate_id: record.id, job_id: submitJob.id, status: "active", current_stage: "submitted", cover_note: submitNote || null, match_score: submitJob._matchScore || null };
+      const res = await sbFetch("/rest/v1/submissions", { method: "POST", body: JSON.stringify(body) });
       setSubmitResult(res.ok ? "success" : "error"); if (window.__aberdeen_toast) window.__aberdeen_toast(res.ok ? "Candidate submitted successfully" : "Submission failed", res.ok ? "success" : "error");
     } catch (e) { setSubmitResult("error"); if (window.__aberdeen_toast) window.__aberdeen_toast("Submission failed: " + e.message, "error"); }
     setSubmitting(false);
@@ -1168,9 +1160,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
     if (!interviewForm.date || !interviewForm.time || !interviewForm.interviewer) return;
     setInterviewSaving(true);
     try {
-      const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-      const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-      const interviewer = [...INTERVIEWERS, ...customInterviewers].find(i => i.id === interviewForm.interviewer);
+          const interviewer = [...INTERVIEWERS, ...customInterviewers].find(i => i.id === interviewForm.interviewer);
       const intType = INT_TYPES.find(t => t.id === interviewForm.type);
       const allParticipants = [interviewForm.candidateEmail, interviewer?.email, ...interviewForm.additionalEmails.split(",").map(e => e.trim())].filter(Boolean);
 
@@ -1219,9 +1209,9 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
       const localInterview = { ...interview, id: `int-${Date.now()}`, candidate_name: record.name || record.candidate_name, interviewer_name: interviewer?.name, interviewer_email: interviewer?.email, candidate_email: interviewForm.candidateEmail, type: interviewForm.type, date: interviewForm.date, time: interviewForm.time, teams_link: mockTeamsLink };
 
       // Write to Supabase
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/interviews`, {
+      const res = await sbFetch("/rest/v1/interviews", {
         method: "POST",
-        headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=representation" },
+        headers: { apikey: SB_KEY, "Content-Type": "application/json", Prefer: "return=representation" },
         body: JSON.stringify(interview)
       });
 
@@ -1293,7 +1283,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
       const generateJD = async () => {
         setJdLoading(true);
         try {
-          const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, system: "You are a recruiting specialist. Write a structured job description. Include: Overview, Responsibilities (5-7 bullets), Requirements (5-7), Nice-to-haves (3-4), and What We Offer (4-5). Be specific and professional. No markdown headers, use plain text with sections.", messages: [{ role: "user", content: `Write a job description for: ${record.title} at ${record.client_name}. Department: ${record.department || "Engineering"}. Location: ${record.location || "Remote"}. Skills: ${(record.skills || []).join(", ")}. Duration: ${record.duration || "Full-time"}. Bill rate: $${record.bill_rate}/hr.` }] }) });
+          const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, system: "You are a recruiting specialist. Write a structured job description. Include: Overview, Responsibilities (5-7 bullets), Requirements (5-7), Nice-to-haves (3-4), and What We Offer (4-5). Be specific and professional. No markdown headers, use plain text with sections.", messages: [{ role: "user", content: `Write a job description for: ${record.title} at ${record.client_name}. Department: ${record.department || "Engineering"}. Location: ${record.location || "Remote"}. Skills: ${(record.skills || []).join(", ")}. Duration: ${record.duration || "Full-time"}. Bill rate: $${record.bill_rate}/hr.` }] }) });
           const data = await res.json();
           setJdText(data.content?.filter(b => b.type === "text").map(b => b.text).join("\n") || "Failed to generate JD.");
         } catch (e) { setJdText("Error: " + e.message); }
@@ -1427,9 +1417,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
         const localNote = { ...note, id: `note-${Date.now()}`, created_at: new Date().toISOString() };
         setLiveNotes(prev => [localNote, ...prev]); setNoteIn("");
         try {
-          const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-          const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-          await fetch(`${SUPABASE_URL}/rest/v1/notes`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(note) });
+                      await sbFetch("/rest/v1/notes", { method: "POST", body: JSON.stringify(note) });
           if (window.__aberdeen_toast) window.__aberdeen_toast("Note saved", "success");
         } catch (e) { if (window.__aberdeen_toast) window.__aberdeen_toast("Note saved locally (offline)", "warning"); }
       };
@@ -1519,7 +1507,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={() => setContactOpen(false)} style={{ padding: "6px 14px", background: "transparent", border: `1px solid ${T.bd}`, borderRadius: 8, color: T.t3, cursor: "pointer", fontFamily: "'Outfit'", fontSize: 12 }}>Cancel</button>
-            <button onClick={async () => { if (!contactForm.name || !contactForm.email) return; const newContact = { id: `ct-${Date.now()}`, ...contactForm }; if (contactForm.isPrimary) setContacts(p => p.map(c => ({ ...c, isPrimary: false }))); setContacts(p => [...p, newContact]); setContactOpen(false); try { const SB = "https://lalkdgljfkgiojfbreyq.supabase.co"; const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c"; await fetch(`${SB}/rest/v1/client_contacts`, { method: "POST", headers: { apikey: SK, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ client_id: record.id, name: contactForm.name, email: contactForm.email, phone: contactForm.phone || null, role: contactForm.role || null, is_primary: contactForm.isPrimary }) }); if (window.__aberdeen_toast) window.__aberdeen_toast("Contact saved", "success"); } catch (e) { if (window.__aberdeen_toast) window.__aberdeen_toast("Contact saved locally", "warning"); } }} disabled={!contactForm.name || !contactForm.email} style={{ padding: "6px 16px", background: (!contactForm.name || !contactForm.email) ? T.bgA : T.acc, color: (!contactForm.name || !contactForm.email) ? T.t3 : "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: (!contactForm.name || !contactForm.email) ? "default" : "pointer", fontFamily: "'Outfit'" }}>Save Contact</button>
+            <button onClick={async () => { if (!contactForm.name || !contactForm.email) return; const newContact = { id: `ct-${Date.now()}`, ...contactForm }; if (contactForm.isPrimary) setContacts(p => p.map(c => ({ ...c, isPrimary: false }))); setContacts(p => [...p, newContact]); setContactOpen(false); try { const SB = "https://lalkdgljfkgiojfbreyq.supabase.co"; const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c"; await sbFetch("/rest/v1/client_contacts", { method: "POST", body: JSON.stringify({ client_id: record.id, name: contactForm.name, email: contactForm.email, phone: contactForm.phone || null, role: contactForm.role || null, is_primary: contactForm.isPrimary }) }); if (window.__aberdeen_toast) window.__aberdeen_toast("Contact saved", "success"); } catch (e) { if (window.__aberdeen_toast) window.__aberdeen_toast("Contact saved locally", "warning"); } }} disabled={!contactForm.name || !contactForm.email} style={{ padding: "6px 16px", background: (!contactForm.name || !contactForm.email) ? T.bgA : T.acc, color: (!contactForm.name || !contactForm.email) ? T.t3 : "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: (!contactForm.name || !contactForm.email) ? "default" : "pointer", fontFamily: "'Outfit'" }}>Save Contact</button>
           </div>
         </div>}
         {contacts.length === 0 ? <EmptyState icon={Users} title="No contacts" description="Add contacts for this client — hiring managers, procurement, billing." /> :
@@ -1681,9 +1669,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
         setTsAdding(false); setTsForm({ weekStart: "", mon: 8, tue: 8, wed: 8, thu: 8, fri: 8, sat: 0, sun: 0, notes: "" });
         // Write to Supabase
         try {
-          const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-          const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-          await fetch(`${SUPABASE_URL}/rest/v1/timesheets`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ placement_id: record.id, week_start: tsForm.weekStart, total_hours: tsFormTotal, mon_hours: tsForm.mon, tue_hours: tsForm.tue, wed_hours: tsForm.wed, thu_hours: tsForm.thu, fri_hours: tsForm.fri, sat_hours: tsForm.sat, sun_hours: tsForm.sun, bill_rate: br, pay_rate: pr, status: "pending", notes: tsForm.notes || null, submitted_at: new Date().toISOString() }) });
+                      await sbFetch("/rest/v1/timesheets", { method: "POST", body: JSON.stringify({ placement_id: record.id, week_start: tsForm.weekStart, total_hours: tsFormTotal, mon_hours: tsForm.mon, tue_hours: tsForm.tue, wed_hours: tsForm.wed, thu_hours: tsForm.thu, fri_hours: tsForm.fri, sat_hours: tsForm.sat, sun_hours: tsForm.sun, bill_rate: br, pay_rate: pr, status: "pending", notes: tsForm.notes || null, submitted_at: new Date().toISOString() }) });
           if (window.__aberdeen_toast) window.__aberdeen_toast(`Timesheet logged: ${tsFormTotal} hours`, "success");
         } catch (e) { if (window.__aberdeen_toast) window.__aberdeen_toast("Timesheet saved locally", "warning"); }
       };
@@ -2011,11 +1997,9 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
             <button onClick={async () => {
               setEsigSending(true);
               try {
-                const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-                const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-                const envId = `ENV-${Date.now().toString(36).toUpperCase()}`;
+                                        const envId = `ENV-${Date.now().toString(36).toUpperCase()}`;
                 const envelope = { id: envId, offer_id: record.id, template: esigEnvelope.template, signers: esigEnvelope.signers, emailSubject: esigEnvelope.emailSubject, emailBody: esigEnvelope.emailBody, expiresInDays: esigEnvelope.expiresInDays, status: "sent", created_at: new Date().toISOString() };
-                try { await fetch(`${SUPABASE_URL}/rest/v1/envelopes`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(envelope) }); } catch (e) {}
+                try { await sbFetch("/rest/v1/envelopes", { method: "POST", body: JSON.stringify(envelope) }); } catch (e) {}
                 setEnvelopes(prev => [envelope, ...prev]);
                 setEsigResult("success");
                 if (window.__aberdeen_toast) window.__aberdeen_toast("Envelope sent for signature", "success");
@@ -2271,9 +2255,7 @@ function EntityDetailPage({ config, record, onBack, onStatusChange, onNavigate }
               if (!pipelineJob) return;
               setPipelineSaving(true);
               try {
-                const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-                const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-                await fetch(`${SUPABASE_URL}/rest/v1/submissions`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ candidate_id: record.id, job_id: pipelineJob.id, status: "active", current_stage: pipelineStage, match_score: null }) });
+                                        await sbFetch("/rest/v1/submissions", { method: "POST", body: JSON.stringify({ candidate_id: record.id, job_id: pipelineJob.id, status: "active", current_stage: pipelineStage, match_score: null }) });
               } catch (e) {}
               setPipelineResult("success");
               if (window.__aberdeen_toast) window.__aberdeen_toast(`Added to ${pipelineStage} pipeline`, "success");
@@ -2632,7 +2614,7 @@ function GatewayPage() {
     const userMsg = { role: "user", content: chatInput.trim() };
     setSessions(p => ({ ...p, [agent.id]: [...(p[agent.id] || []), userMsg] })); setInputs(p => ({ ...p, [agent.id]: "" })); setStreaming(true);
     let reply;
-    if (useLive) { try { const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: agent.sys, messages: [...(sessions[agent.id] || []), userMsg].map(m => ({ role: m.role, content: m.content })) }) }); const data = await res.json(); reply = data.content?.[0]?.text || "No response received."; } catch (e) { reply = "API error: " + e.message; } }
+    if (useLive) { try { const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: agent.sys, messages: [...(sessions[agent.id] || []), userMsg].map(m => ({ role: m.role, content: m.content })) }) }); const data = await res.json(); reply = data.content?.[0]?.text || "No response received."; } catch (e) { reply = "API error: " + e.message; } }
     else { await new Promise(r => setTimeout(r, 600)); reply = mockReply(agent, chatInput.trim()); }
     setSessions(p => ({ ...p, [agent.id]: [...(p[agent.id] || []), { role: "assistant", content: reply }] })); setStreaming(false);
   };
@@ -2736,7 +2718,7 @@ function CommandCenterPage() {
   // Fetch real Thompson Sampling arms from Supabase
   useEffect(() => {
     (async () => { try {
-      const res = await fetch("https://lalkdgljfkgiojfbreyq.supabase.co/rest/v1/thompson_arms?select=arm_key,segment,alpha,beta_param,total_pulls,total_reward,mean_reward&order=arm_key", { headers: { apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c" } });
+      const res = await sbFetch("/rest/v1/thompson_arms?select=arm_key,segment,alpha,beta_param,total_pulls,total_reward,mean_reward&order=arm_key", { headers: { apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c" } });
       if (res.ok) { const rows = await res.json(); if (rows.length > 0) setBanditArms(rows.map(r => ({ arm: r.segment || r.arm_key, alpha: parseFloat(r.alpha), beta: parseFloat(r.beta_param), total_pulls: r.total_pulls, total_rewards: parseFloat(r.total_reward) }))); }
     } catch (e) {} })();
   }, []);
@@ -2761,7 +2743,7 @@ function CommandCenterPage() {
   const [driftData, setDriftData] = useState(() => detectDrift(Array.from({ length: 40 }, (_, i) => 0.65 + Math.sin(i * 0.2) * 0.15)));
   useEffect(() => {
     (async () => { try {
-      const res = await fetch("https://lalkdgljfkgiojfbreyq.supabase.co/rest/v1/candidate_job_matches?select=overall_score&order=created_at.desc&limit=50", { headers: { apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c" } });
+      const res = await sbFetch("/rest/v1/candidate_job_matches?select=overall_score&order=created_at.desc&limit=50", { headers: { apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c" } });
       if (res.ok) { const rows = await res.json(); if (rows.length >= 20) setDriftData(detectDrift(rows.map(r => (r.overall_score || 0) / 100))); }
     } catch (e) {} })();
   }, []);
@@ -3009,11 +2991,9 @@ function AnalyticsPage() {
   const [liveStats, setLiveStats] = useState(null);
   useEffect(() => {
     (async () => { try {
-      const SB = "https://lalkdgljfkgiojfbreyq.supabase.co";
-      const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-      const [pRes, cRes] = await Promise.all([
-        fetch(`${SB}/rest/v1/placements?select=bill_rate,pay_rate,status,client_name&deleted_at=is.null`, { headers: { apikey: SK } }),
-        fetch(`${SB}/rest/v1/clients?select=name,total_revenue&deleted_at=is.null`, { headers: { apikey: SK } }),
+          const [pRes, cRes] = await Promise.all([
+        sbFetch("/rest/v1/placements?select=bill_rate,pay_rate,status,client_name&deleted_at=is.null", { headers: { apikey: SK } }),
+        sbFetch("/rest/v1/clients?select=name,total_revenue&deleted_at=is.null", { headers: { apikey: SK } }),
       ]);
       if (pRes.ok && cRes.ok) {
         const placements = await pRes.json();
@@ -3265,9 +3245,6 @@ function IngestionPage({ nav }) {
   const csvFileRef = useRef(null);
   const linkedinFileRef = useRef(null);
 
-  const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
-
   // --- RESUME FILE HANDLING ---
   const handleFiles = async (fileList) => {
     const arr = Array.from(fileList).filter(f => f.type === "application/pdf" || f.type === "text/plain" || f.name.endsWith(".txt") || f.name.endsWith(".pdf") || f.type.includes("word"));
@@ -3399,7 +3376,7 @@ function IngestionPage({ nav }) {
       try {
         const nameParts = (rec.name || "").split(" ");
         const body = { first_name: nameParts[0] || null, last_name: nameParts.slice(1).join(" ") || null, title: rec.title || rec.name, name: rec.name, status: "active", location: rec.location || null, source: rec.source || "import", email: rec.email || null, phone: rec.phone || null, skills: rec.skills || [], ai_score: rec.score || null };
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/candidates`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(body) });
+        const res = await sbFetch("/rest/v1/candidates", { method: "POST", body: JSON.stringify(body) });
         if (res.ok) results.success++; else { results.failed++; results.errors.push(`${rec.name}: ${res.statusText}`); }
       } catch (e) { results.failed++; results.errors.push(`${rec.name}: ${e.message}`); }
     }
@@ -3575,8 +3552,6 @@ function PlaceholderPage({ title, desc, IconC }) {
 
 // ═══ MAIN — MASTERSHELL ═══
 export default function AberdeenUnified() {
-  const SUPABASE_URL = "https://lalkdgljfkgiojfbreyq.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhbGtkZ2xqZmtnaW9qZmJyZXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2OTc2NjIsImV4cCI6MjA1ODI3MzY2Mn0.GKJJqxfJRkFJylI1Zll1bj1HzKT2raWRpz6RMaZR37c";
   // Auth state
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -3590,7 +3565,7 @@ export default function AberdeenUnified() {
       try {
         const token = sessionStorage.getItem("sb_access_token");
         if (token) {
-          const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` } });
+          const res = await fetch(`${SB_URL}/auth/v1/user`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${token}` } });
           if (res.ok) { const user = await res.json(); setAuthUser(user); }
           else sessionStorage.removeItem("sb_access_token");
         }
@@ -3602,8 +3577,8 @@ export default function AberdeenUnified() {
   const handleLogin = async () => {
     setLoginLoading(true); setLoginError("");
     try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-        method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+      const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+        method: "POST",
         body: JSON.stringify({ email: loginForm.email, password: loginForm.password })
       });
       const data = await res.json();
